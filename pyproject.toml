@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools", "setuptools_scm[toml]"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
+version_scheme = "no-guess-dev"
+local_scheme="no-local-version"
+write_to = "src/marktrimming/version.py"
+git_describe_command = "git describe --dirty --tags --long --match [1234567890].*"
+
+[tool.setuptools.dynamic]
+version = {attr = "marktrimming.version.__version__"}
+readme = {file = ["README.md"], content-type = "text/md"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project]
+name = "marktrimming"
+dynamic = ["version", "readme"]
+authors = [
+  { name="mmterpstra", email="mmterpstra@users.noreply.github.com" },
+]
+description = "Tool for integrating cutadapt into the gatk workflow instead of the default MarkIlluminaAdapters."
+requires-python = ">=3.6"
+dependencies = [ "pysam>=0.21.0" ]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+license= {file = "LICENSE"}
+[project.urls]
+Homepage = "https://github.com/mmterpstra/marktrimming"
+Issues = "https://github.com/mmterpstra/marktrimming/issues"
+
+[project.scripts]
+marktrimming = "marktrimming.marktrimming:main"
+#[console_scripts]
+#marktrimming="src.marktrimming.marktrimming:marktrimming_cli"
