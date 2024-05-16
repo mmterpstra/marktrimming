@@ -29,6 +29,7 @@ def marktrimming_cli():
     parser.add_argument('--input', help='Input bam. Should support "-" as /dev/stdin', required=True )
     parser.add_argument('--ubam-out',help='Write uncompressed output bam. Helpful for speeding up on stream processing',  type=bool, required=False, default=False )
     parser.add_argument('--ubam-in',help='Read uncompressed input bam.', type=bool, required=False, default=False )
+    parser.add_argument('--version', action='version', version='%(prog)s '+version)
 
 
     args = parser.parse_args()
