@@ -7,7 +7,7 @@ import pprint
 import time
 from datetime import timedelta
 import logging
-from . import version
+import version
 
 version = version.__version__
 def main():
@@ -23,7 +23,7 @@ def marktrimming_cli():
         description='Takes queryname sorted reads and bam file and annotates the data with data from trimmed reads if present. ' + 
         'Should be used on an unaligned bam produced by fgbio or picard/gatk tools then the fastq dumped reads thoud be ran ' +
         'through the trimming tool or similar to produce the trimmed fq. This produces a bam similar to markIlluminaAdapters to be analysed with mergeBamAlignment. Tested on cutadapt without deleting reads.',
-        epilog='Example useage python3 MarkTrimming.py --input input.bam --output output.bam --fastq qname_R1.fastq.gz --fastq qname_R2.fastq.gz')
+        epilog='Example useage python3 marktrimming.py --input input.bam --output output.bam --fastq qname_R1.fastq.gz --fastq qname_R2.fastq.gz')
     parser.add_argument('--output',help='Output bam. Should support "-" as /dev/stdout', required=True)
     parser.add_argument('--fastq', nargs='+' ,type=str, help='Input fastqs one or more arguments (two max). Should not be streamable.',action='append', required=True)
     parser.add_argument('--input', help='Input bam. Should support "-" as /dev/stdin', required=True )
@@ -53,14 +53,14 @@ def marktrimming(args):
     #assume bam format without @SQ reference sequence header.
     readmode = 'rb'
     inbam = pysam.AlignmentFile(args.input, readmode, check_sq=False, require_index=False)
-    print(rstrip(inbam.text) + "\t".join(["@PG","ID:marktrimming", "PN:marktrimming", "VN:version"+version, "CL:"+' '.join(sys.argv)]), file=sys.stderr)
-    exit(1)
-    header=fromstring(inbam.text)
+    print(inbam.text.rstrip() + "\t".join(["@PG","ID:marktrimming", "PN:marktrimming", "VN:version"+version, "CL:"+' '.join(sys.argv)]), file=sys.stderr)
+    #exit(1)
+    header=fromstring(inbam.text+ "\t".join(["@PG","ID:marktrimming", "PN:marktrimming", "VN:version"+version, "CL:"+' '.join(sys.argv)]))
 
     writemode = 'wb'
     if args.ubam_out:
         writemode = 'wbu'
-    outfile = pysam.AlignmentFile(args.output, writemode, template=inbam, check_sq=False, require_index=False)
+    outfile = pysam.AlignmentFile(args.output, writemode, header=header, template=inbam, check_sq=False, require_index=False)
     
     #intiatiate trimmed fastq reading and read them to an array of (paired) data. Every entry contains 4 lines of fastq data single line sequence/qual fastq data assumed. 
     fqs = []
