@@ -16,4 +16,4 @@ def myversion():
     }
 
 
-setup(use_scm_version=myversion)
+setup(use_scm_version=myversion())
