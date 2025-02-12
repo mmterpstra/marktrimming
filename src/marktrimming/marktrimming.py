@@ -7,8 +7,7 @@ import pprint
 import time
 from datetime import timedelta
 import logging
-import version
-
+from marktrimming import version
 version = version.__version__
 def main():
     marktrimming_cli()
@@ -53,14 +52,15 @@ def marktrimming(args):
     #assume bam format without @SQ reference sequence header.
     readmode = 'rb'
     inbam = pysam.AlignmentFile(args.input, readmode, check_sq=False, require_index=False)
-    print(inbam.text.rstrip() + "\t".join(["@PG","ID:marktrimming", "PN:marktrimming", "VN:version"+version, "CL:"+' '.join(sys.argv)]), file=sys.stderr)
+    
     #exit(1)
-    header=fromstring(inbam.text+ "\t".join(["@PG","ID:marktrimming", "PN:marktrimming", "VN:version"+version, "CL:"+' '.join(sys.argv)]))
-
+    #inbam.AlignmentHeader.fromstring(inbam.text.rstrip()+ "\n"+ "\t".join(["@PG","ID:marktrimming", "PN:marktrimming", "VN:version"+version, "CL:"+' '.join(sys.argv)]))
+    header = pysam.samtools.view("-H",args.input)+ "\n"+ "\t".join(["@PG","ID:marktrimming", "PN:marktrimming", "VN:version"+version, "CL:"+' '.join(sys.argv)])
+    
     writemode = 'wb'
     if args.ubam_out:
         writemode = 'wbu'
-    outfile = pysam.AlignmentFile(args.output, writemode, header=header, template=inbam, check_sq=False, require_index=False)
+    outfile = pysam.AlignmentFile(args.output, writemode, text=header, check_sq=False, require_index=False)
     
     #intiatiate trimmed fastq reading and read them to an array of (paired) data. Every entry contains 4 lines of fastq data single line sequence/qual fastq data assumed. 
     fqs = []
@@ -76,13 +76,18 @@ def marktrimming(args):
     #fqs = [fq.open() for fq in fqs]
     #fastqhandles = [fq.open() for fq in fqs ]
     count = 0
+    fastqlineno = 0
+
     trimmed_count_first_of_pair = 0
     trimmed_count_second_of_pair = 0
     fastqrecords=[]
     for f in fqs:
         fastqrecords.append(f.read_record())
+        fastqlineno = fastqlineno + 1
     #single bam record/end to multiple fastq records
     for lineno, bamrecord in enumerate(inbam):
+        if lineno % 100000 == 0: 
+            logging.info(" Records processsed "+str(lineno) + ".")
         def stripfqheader(header):
             header=header.lstrip('@')
             for char in [' ','/']:
@@ -122,16 +127,17 @@ def marktrimming(args):
         sync_counter = 0
         sync_counter_max = 1000
         if not fastq_to_bam_iseq(fastqrecords,bamrecord):
-            print("IFL78", file=sys.stderr)
+            #print("IFL78", file=sys.stderr)
             while (not fastq_to_bam_iseq(fastqrecords,bamrecord)) or (sync_counter > sync_counter_max):
-                print("WHILEL80", file=sys.stderr)
+                #print("WHILEL80", file=sys.stderr)
                 fastqrecords=[]
                 for f in fqs:
                     fastqrecords.append(f.read_record())
+                    fastqlineno = fastqlineno + 1
                     sync_counter = sync_counter + 1
                 if sync_counter > sync_counter_max: 
                     print("error :: fastq-bam file combi out of sync!! records:", file=sys.stderr)
-                    print("Fastq"+ fastqrecords  + "bam"+ bamrecord, file=sys.stderr)
+                    print("Fastq"+ (",".join([fastqrecords[0][0],fastqrecords[0][0]]))+"fastqlineno"+str(fastqlineno)  + "bam" + bamrecord.tostring()+"bamlineno" + str(lineno) , file=sys.stderr)
                     exit(1)
         #compare post trim with untrimmed lenght
         if  bamrecord.is_read1 and len(fastqrecords[0][1]) < len(bamrecord.query_sequence):
