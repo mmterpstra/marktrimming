@@ -29,6 +29,8 @@ This can be used with the picard toold SamToFastq marking adapter trimmed reads 
 
 # debugging
 
+Probably there is a better way to debug this is what I'm using atm.
+
 ```bash
-(ml marktrimming && python3 setup.py install --prefix  tests/install/  && export PYTHONPATH='./tests/install/lib/:'"$PYTHONPATH" && python ./build/lib/marktrimming/marktrimming.py --help)
+(ml Pysam  && export PYTHONPATH="$PWD/tests/install/lib/python3.10/site-packages:""$PYTHONPATH" && pip3 install -f -e . --prefix  tests/install/ &&  python3 ./tests/install/bin/marktrimming --output tests/test.tmp.bam --input /path/to/unaligned_qsorted.bam --fastq cutadapt_R1.fastq.gz --fastq cutadapt_R2.fastq.gz ) 
 ```

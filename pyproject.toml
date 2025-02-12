@@ -29,11 +29,12 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
-license= {file = "LICENSE"}
+
+
+
 [project.urls]
 Homepage = "https://github.com/mmterpstra/marktrimming"
 Issues = "https://github.com/mmterpstra/marktrimming/issues"
-
 [project.scripts]
 marktrimming = "marktrimming.marktrimming:main"
 #[console_scripts]
