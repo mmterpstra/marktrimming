@@ -28,6 +28,7 @@ def marktrimming_cli():
     parser.add_argument('--input', help='Input bam. Should support "-" as /dev/stdin', required=True )
     parser.add_argument('--ubam-out',help='Write uncompressed output bam. Helpful for speeding up on stream processing',  type=bool, required=False, default=False )
     parser.add_argument('--ubam-in',help='Read uncompressed input bam.', type=bool, required=False, default=False )
+    parser.add_argument('--trimming-tag',help='Tag to add in trimmings. Default is XT for gatk compatibility', type=str, required=False, default="XT")
     parser.add_argument('--version', action='version', version='%(prog)s '+version)
 
 
@@ -49,13 +50,13 @@ def marktrimming(args):
     # read trimmed fastq inputs keeping them (hopefully) synced by reading new records if their headers dont match with the bam data.
     # read initial fqs -> interate bam records -> sync fastq if header not eq to bam.
     # update XT tags if the read is shorter then the unaligned bam.  
-    #assume bam format without @SQ reference sequence header.
+    # assume bam format without @SQ reference sequence header.
     readmode = 'rb'
     inbam = pysam.AlignmentFile(args.input, readmode, check_sq=False, require_index=False)
     
     #exit(1)
-    #inbam.AlignmentHeader.fromstring(inbam.text.rstrip()+ "\n"+ "\t".join(["@PG","ID:marktrimming", "PN:marktrimming", "VN:version"+version, "CL:"+' '.join(sys.argv)]))
-    header = pysam.samtools.view("-H",args.input)+ "\n"+ "\t".join(["@PG","ID:marktrimming", "PN:marktrimming", "VN:version"+version, "CL:"+' '.join(sys.argv)])
+    #there aint no logic to be found here
+    header = pysam.samtools.view("-H",args.input)+ "\t".join(["@PG","ID:marktrimming", "PN:marktrimming", "VN:version"+version, "CL:"+' '.join(sys.argv)])
     
     writemode = 'wb'
     if args.ubam_out:
@@ -69,12 +70,6 @@ def marktrimming(args):
             #print("input fastqs "+ str(fqfile), file=sys.stderr)
             fqs.append( FastqFile(fqfile, 'r').open())
 
-    #fqs= []
-    #for fqfile in args.fastq:
-        
-    
-    #fqs = [fq.open() for fq in fqs]
-    #fastqhandles = [fq.open() for fq in fqs ]
     count = 0
     fastqlineno = 0
 
@@ -83,20 +78,22 @@ def marktrimming(args):
     fastqrecords=[]
     for f in fqs:
         fastqrecords.append(f.read_record())
-        fastqlineno = fastqlineno + 1
+    fastqlineno = fastqlineno + 1
     #single bam record/end to multiple fastq records
     for lineno, bamrecord in enumerate(inbam):
         if lineno % 100000 == 0: 
             logging.info(" Records processsed "+str(lineno) + ".")
         def stripfqheader(header):
+            #strips of the optional ["/1","/2", and space separated comments"
             header=header.lstrip('@')
             for char in [' ','/']:
                 if char in header:
                     header=header[:header.index(char)]
-                    #print(header, file=sys.stderr)
-                    #print(header, file=sys.stderr)
             return header
         def checkpaired(records):
+            #This checks of the fastq data is in sync structure like :  
+            #[["@fq1 header","ATCGATCGN","+","BASEQUALS"],["@fq2 header","ATCGATCGN","+","BASEQUALS"]] 
+            #checks if [*][0] is eq between array of records
             for record in records:
                 if not stripfqheader(records[0][0]) == stripfqheader(record[0]):
                     print("error :: fastq files out of sync!! records:", file=sys.stderr)
@@ -105,10 +102,13 @@ def marktrimming(args):
                     exit(1)
             return True
         
+
         checkpaired(fastqrecords)
         #print(fastqrecords)
         
         def fastq_to_bam_iseq(fastq_records,bam_record):
+            #This compares the header IDs to be the same between bam and fastq files
+            #this might need a trycatch structure
             #try:
                 if not bam_record.query_name == stripfqheader(fastq_records[0][0]):
                     #print("error :: fastq-bam file combi out of sync!! records:")
@@ -123,18 +123,16 @@ def marktrimming(args):
             #    print( bam_record )
             #    exit(1) 
 
-        #Sync fastq to bam bacause the fastq should be always lagging 
+        #Sync fastq to bam bacause the fastq should be always lagging assuming the trimming might delete a read or so.
         sync_counter = 0
         sync_counter_max = 1000
         if not fastq_to_bam_iseq(fastqrecords,bamrecord):
-            #print("IFL78", file=sys.stderr)
             while (not fastq_to_bam_iseq(fastqrecords,bamrecord)) or (sync_counter > sync_counter_max):
-                #print("WHILEL80", file=sys.stderr)
                 fastqrecords=[]
                 for f in fqs:
                     fastqrecords.append(f.read_record())
-                    fastqlineno = fastqlineno + 1
-                    sync_counter = sync_counter + 1
+                fastqlineno = fastqlineno + 1
+                sync_counter = sync_counter + 1
                 if sync_counter > sync_counter_max: 
                     print("error :: fastq-bam file combi out of sync!! records:", file=sys.stderr)
                     print("Fastq"+ (",".join([fastqrecords[0][0],fastqrecords[0][0]]))+"fastqlineno"+str(fastqlineno)  + "bam" + bamrecord.tostring()+"bamlineno" + str(lineno) , file=sys.stderr)
@@ -144,7 +142,7 @@ def marktrimming(args):
             #print(len(bamrecord.query_sequence), file=sys.stderr)
             #print(len(fastqrecords[0][1]), file=sys.stderr)
             #pprint.pprint(fastqrecords, stream=sys.stderr)
-            bamrecord.set_tag('XT', len(fastqrecords[0][1])+1, value_type='i', replace=True)
+            bamrecord.set_tag(args.trimming_tag, len(fastqrecords[0][1])+1, value_type='i', replace=True)
             #print(bamrecord, file=sys.stderr)
             #exit(1)
             trimmed_count_first_of_pair = trimmed_count_first_of_pair + 1 
@@ -152,18 +150,15 @@ def marktrimming(args):
             #print(len(bamrecord.query_sequence), file=sys.stderr)
             #print(len(fastqrecords[1][1]), file=sys.stderr)
             #pprint.pprint(fastqrecords, stream=sys.stderr)
-            bamrecord.set_tag('XT', len(fastqrecords[1][1])+1, value_type='i', replace=True)
+            bamrecord.set_tag(args.trimming_tag, len(fastqrecords[1][1])+1, value_type='i', replace=True)
             #print(bamrecord, file=sys.stderr)
             #exit(1)
             trimmed_count_second_of_pair = trimmed_count_second_of_pair + 1 
 
-        #pprint.pprint(fastqrecords, stream=sys.stderr)
-        #pprint.pprint(bamrecord, stream=sys.stderr)
         outfile.write(bamrecord)
-        #if count > 10 :
-        #    exit(1) 
-        #exit(1)
         count = count + 1
+    #this is needed due to htslib needs to finish writing the last bam block.
+    outfile.close()
     return count,trimmed_count_first_of_pair,trimmed_count_second_of_pair
     #notes
     test="""[umcg-mterpstra@gearshift Bestie]$ (ml Pysam ;python3 marktrimming.py --output tests/test.tmp.bam --input tests/runs/integration/cromwell-executions/FastqToVariants/4c1193d5-c447-4739-a5ff-bb1af87dc88e/call-fqToBam/shard-1/FastqToBam/*/call-fastqToUnmappedBam/shard-0/execution/*_ATTTTA+TAAAAT.L002_unaligned.bam --fastq tests/runs/integration/cromwell-executions/FastqToVariants/4c1193d5-c447-4739-a5ff-bb1af87dc88e/call-fqToBam/shard-1/FastqToBam/*/call-adaptertrim/shard-*/execution/MySample2_HXXXXXXXXXXXD_LL002_S02_trim_R1.fastq.gz --fastq tests/runs/integration/cromwell-executions/FastqToVariants/4c1193d5-c447-4739-a5ff-bb1af87dc88e/call-fqToBam/shard-1/FastqToBam/*/call-adaptertrim/shard-*/execution/MySample2_HXXXXXXXXXXXD_LL002_S02_trim_R2.fastq.gz )
@@ -245,9 +240,14 @@ class FastqFile:
         
         if self.mode != 'r':
             raise ValueError("File not opened in read mode")
-        lines = [self.file_handle.readline().strip() for _ in range(4)]
-        if not all(lines):
-            return None
+        lines = [self.file_handle.readline() for _ in range(4)]
+        for line in lines[1:]:
+            if len(line) == 0:
+                raise ValueError("incorrect or corrupt fastq format.\nrecord:"+"\n".join(lines))
+        if len(lines[0]) == 0:
+            raise ValueError("Trying to read beyond eof: time for some more sanity checks!\nrecord:"+"\n".join(lines))
+            return ["","","",""]
+        lines = [_.rstrip() for _ in lines]
         return lines
     
     def unread_record(self, record):
