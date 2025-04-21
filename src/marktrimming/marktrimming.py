@@ -78,7 +78,7 @@ def marktrimming(args):
     fastqrecords=[]
     for f in fqs:
         fastqrecords.append(f.read_record())
-        fastqlineno = fastqlineno + 1
+    fastqlineno = fastqlineno + 1
     #single bam record/end to multiple fastq records
     for lineno, bamrecord in enumerate(inbam):
         if lineno % 100000 == 0: 
