@@ -15,7 +15,7 @@ def main():
 def marktrimming_cli():
     start_time = time.time()
     # Configure logging
-    logging.basicConfig(level=logging.INFO, format='# %(asctime)s ##INFO## %(message)s')
+    logging.basicConfig(level=logging.INFO, format='# %(asctime)s # %(filename)s.%(funcName)s # %(levelname)s # %(message)s')
     logging.info("Started "+sys.argv[0]+" version "+version+".")
     parser = argparse.ArgumentParser(
         prog=sys.argv[0],
@@ -78,7 +78,7 @@ def marktrimming(args):
     fastqrecords=[]
     for f in fqs:
         fastqrecords.append(f.read_record())
-    fastqlineno = fastqlineno + 1
+        fastqlineno = fastqlineno + 1
     #single bam record/end to multiple fastq records
     for lineno, bamrecord in enumerate(inbam):
         if lineno % 100000 == 0: 
@@ -97,12 +97,11 @@ def marktrimming(args):
             for record in records:
                 if not stripfqheader(records[0][0]) == stripfqheader(record[0]):
                     print("error :: fastq files out of sync!! records:", file=sys.stderr)
-                    print("R1"+ records[0][0] + "R2"+ record[1][0], file=sys.stderr)
+                    print("R1"+ records[0][0] + "R2"+ records[1][0], file=sys.stderr)
                     print(records, file=sys.stderr)
                     exit(1)
             return True
         
-
         checkpaired(fastqrecords)
         #print(fastqrecords)
         
@@ -137,7 +136,7 @@ def marktrimming(args):
                     print("error :: fastq-bam file combi out of sync!! records:", file=sys.stderr)
                     print("Fastq"+ (",".join([fastqrecords[0][0],fastqrecords[0][0]]))+"fastqlineno"+str(fastqlineno)  + "bam" + bamrecord.tostring()+"bamlineno" + str(lineno) , file=sys.stderr)
                     exit(1)
-        #compare post trim with untrimmed lenght
+        #compare post trim with untrimmed length
         if  bamrecord.is_read1 and len(fastqrecords[0][1]) < len(bamrecord.query_sequence):
             #print(len(bamrecord.query_sequence), file=sys.stderr)
             #print(len(fastqrecords[0][1]), file=sys.stderr)
@@ -274,4 +273,3 @@ class FastqFile:
 # __name__
 if __name__=="__main__":
     main()
-    
