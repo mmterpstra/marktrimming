@@ -53,15 +53,17 @@ def marktrimming(args):
     # assume bam format without @SQ reference sequence header.
     readmode = 'rb'
     inbam = pysam.AlignmentFile(args.input, readmode, check_sq=False, require_index=False)
-    
+    #header = inbam.header.to_dict()
     #exit(1)
     #there aint no logic to be found here
-    header = pysam.samtools.view("-H",args.input)+ "\t".join(["@PG","ID:marktrimming", "PN:marktrimming", "VN:version"+version, "CL:"+' '.join(sys.argv)])
-    
+    #header = pysam.samtools.view("-H",args.input)+ "\t".join(["@PG","ID:marktrimming", "PN:marktrimming", "VN:version"+version, "CL:"+' '.join(sys.argv)])
+    outheader = inbam.header.to_dict()
+    outheader['PG'] = [{'ID': '1','PN':'marktrimming','DS':'External trimming tool integration','VN':'version'+version,'CL':' '.join(sys.argv)}]
+
     writemode = 'wb'
     if args.ubam_out:
         writemode = 'wbu'
-    outfile = pysam.AlignmentFile(args.output, writemode, text=header, check_sq=False, require_index=False)
+    outfile = pysam.AlignmentFile(args.output, writemode, header=outheader, check_sq=False, require_index=False)
     
     #intiatiate trimmed fastq reading and read them to an array of (paired) data. Every entry contains 4 lines of fastq data single line sequence/qual fastq data assumed. 
     fqs = []
@@ -81,7 +83,7 @@ def marktrimming(args):
     fastqlineno = fastqlineno + 1
     #single bam record/end to multiple fastq records
     for lineno, bamrecord in enumerate(inbam):
-        if lineno % 100000 == 0: 
+        if lineno % 1000000 == 0: 
             logging.info(" Records processsed "+str(lineno) + ".")
         def stripfqheader(header):
             #strips of the optional ["/1","/2", and space separated comments"
